@@ -27,11 +27,10 @@ The model was trained on the Pima Indians Diabetes Dataset and achieves high acc
 - **Framework**: Streamlit (Python web application framework)
 - **Frontend**: Streamlit components with custom HTML/CSS
 - **Backend**: Python with Streamlit framework
-- **UI Enhancements**: Custom CSS for styling, JavaScript for input validation
 
 ### Model Training & Development
 - **Platform**: Google Colab (for model training and experimentation)
-- **Environment**: Jupyter Notebook interface
+- **Environment**: Google Colab
 - **Language**: Python 3.x
 - **Machine Learning Libraries**:
   - scikit-learn (Gradient Boosting Classifier)
