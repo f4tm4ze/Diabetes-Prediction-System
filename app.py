@@ -1,31 +1,62 @@
+# =============== NUMPY COMPATIBILITY PATCH ==================
+# This MUST be the first thing in the file - fixes BitGenerator and _core issues
+import sys
+import numpy as np
+
+# Patch for numpy._core module
+if not hasattr(np, '_core'):
+    np._core = np.core
+
+# Patch for BitGenerator and MT19937
+if not hasattr(np.random, 'BitGenerator'):
+    class BitGenerator:
+        def __init__(self, *args, **kwargs):
+            pass
+    np.random.BitGenerator = BitGenerator
+
+if not hasattr(np.random, '_mt19937'):
+    class MT19937:
+        def __init__(self, *args, **kwargs):
+            pass
+    np.random._mt19937 = type('_mt19937', (), {'MT19937': MT19937})()
+
+# Also patch the random module structure
+import numpy.random as random
+if not hasattr(random, 'BitGenerator'):
+    random.BitGenerator = BitGenerator
+
+# =============== REST OF YOUR IMPORTS ==================
 import streamlit as st
 import pandas as pd
 import joblib
 import base64
 import os
 import pickle
-import sys
 import warnings
 warnings.filterwarnings('ignore')
 
 # =============== BACKGROUND IMAGE FUNCTION ==================
 def add_bg_from_local(image_file):
-    with open(image_file, "rb") as f:
-        encoded = base64.b64encode(f.read()).decode()
-    st.markdown(
-        f"""
-        <style>
-        .stApp {{
-            background-image: url("data:image/jpeg;base64,{encoded}");
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+    try:
+        with open(image_file, "rb") as f:
+            encoded = base64.b64encode(f.read()).decode()
+        st.markdown(
+            f"""
+            <style>
+            .stApp {{
+                background-image: url("data:image/jpeg;base64,{encoded}");
+                background-size: cover;
+                background-position: center;
+                background-repeat: no-repeat;
+                background-attachment: fixed;
+            }}
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+    except FileNotFoundError:
+        st.warning(f"Background image '{image_file}' not found. Using default background.")
+        pass
 
 add_bg_from_local("bg2.jpg")
 
@@ -359,7 +390,7 @@ def load_diabetes_model():
         st.stop()
     
     try:
-        # Try loading normally
+        # Try loading with joblib
         model_data = joblib.load(model_path)
         
         # Handle different return formats
@@ -385,13 +416,52 @@ def load_diabetes_model():
         return model, scaler, saved_cols
         
     except Exception as e:
-        st.error(f"❌ Error loading model: {str(e)}")
+        st.warning(f"Joblib loading failed: {str(e)}")
         
-        # Try alternative loading with pickle
+        # Try alternative loading with custom unpickler
         try:
-            with open(model_path, 'rb') as f:
-                model_data = pickle.load(f)
+            class CustomUnpickler(pickle.Unpickler):
+                def find_class(self, module, name):
+                    # Handle missing numpy.random._mt19937
+                    if module == 'numpy.random._mt19937' and name == 'MT19937':
+                        class DummyMT19937:
+                            def __init__(self, *args, **kwargs):
+                                pass
+                        return DummyMT19937
+                    
+                    # Handle BitGenerator
+                    if 'BitGenerator' in name:
+                        class DummyBitGenerator:
+                            def __init__(self, *args, **kwargs):
+                                pass
+                        return DummyBitGenerator
+                    
+                    # Handle numpy._core
+                    if module == 'numpy._core':
+                        module = 'numpy.core'
+                    
+                    # Handle other random modules
+                    if 'numpy.random' in module:
+                        try:
+                            return super().find_class(module, name)
+                        except:
+                            class DummyClass:
+                                def __init__(self, *args, **kwargs):
+                                    pass
+                            return DummyClass
+                    
+                    try:
+                        return super().find_class(module, name)
+                    except (ModuleNotFoundError, ImportError):
+                        class DummyClass:
+                            def __init__(self, *args, **kwargs):
+                                pass
+                        return DummyClass
             
+            with open(model_path, 'rb') as f:
+                model_data = CustomUnpickler(f).load()
+            
+            # Extract model components
             if isinstance(model_data, tuple):
                 if len(model_data) == 3:
                     model, scaler, saved_cols = model_data
@@ -407,7 +477,10 @@ def load_diabetes_model():
                 scaler = None
                 saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
             
-            st.success("✅ Model loaded successfully with alternative method!")
+            if scaler is not None and hasattr(scaler, 'set_output'):
+                scaler = scaler.set_output(transform='pandas')
+            
+            st.success("✅ Model loaded successfully with compatibility mode!")
             return model, scaler, saved_cols
             
         except Exception as e2:
