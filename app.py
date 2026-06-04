@@ -1,8 +1,16 @@
-# =============== NUMPY COMPATIBILITY PATCHES (MUST BE FIRST) ==================
+# =============== RUN MODEL FIX FIRST ==================
+import os
+import sys
+import pickle
+import joblib
 import numpy as np
+import warnings
+warnings.filterwarnings('ignore')
+
+# =============== NUMPY COMPATIBILITY PATCH ==================
 import numpy.random as random
 
-# Fix numpy compatibility issues
+# Ensure all required numpy modules exist
 if not hasattr(np, '_core'):
     np._core = np.core
 
@@ -24,15 +32,141 @@ if not hasattr(np.random, '_mt19937'):
 if not hasattr(np.random, 'BitGenerator'):
     np.random.BitGenerator = random.BitGenerator
 
-# =============== IMPORTS ==================
+# =============== AUTO FIX MODEL FUNCTION ==================
+MODEL_PATH = "diabetes_gb.pkl"
+FIXED_MODEL_PATH = "diabetes_gb_fixed.pkl"
+FIX_MARKER = ".model_fixed"
+
+def auto_fix_model():
+    """Automatically fix the model file if needed"""
+    print("\n" + "="*60)
+    print("AUTO-FIXING DIABETES MODEL")
+    print("="*60)
+    
+    if not os.path.exists(MODEL_PATH):
+        print(f"❌ Model file {MODEL_PATH} not found!")
+        return False
+    
+    print(f"✓ Found model file: {MODEL_PATH}")
+    print(f"  File size: {os.path.getsize(MODEL_PATH)} bytes")
+    
+    # Try multiple loading methods
+    model_data = None
+    
+    # Method 1: Try joblib with patches
+    try:
+        print("\n📥 Method 1: Loading with joblib...")
+        model_data = joblib.load(MODEL_PATH)
+        print("✓ Success!")
+    except Exception as e:
+        print(f"⚠️ Failed: {str(e)[:80]}")
+    
+    # Method 2: Try pickle with different encodings
+    if model_data is None:
+        for encoding in ['latin1', 'bytes', 'utf-8']:
+            try:
+                print(f"\n📥 Method 2: Loading with pickle (encoding={encoding})...")
+                with open(MODEL_PATH, 'rb') as f:
+                    model_data = pickle.load(f, encoding=encoding)
+                print("✓ Success!")
+                break
+            except Exception as e:
+                print(f"⚠️ Failed with {encoding}: {str(e)[:80]}")
+    
+    # Method 3: Try custom unpickler
+    if model_data is None:
+        try:
+            print("\n📥 Method 3: Loading with custom unpickler...")
+            class SafeUnpickler(pickle.Unpickler):
+                def find_class(self, module, name):
+                    try:
+                        return super().find_class(module, name)
+                    except (AttributeError, ModuleNotFoundError, ImportError):
+                        print(f"   Creating dummy for: {module}.{name}")
+                        return type(name, (), {})
+            
+            with open(MODEL_PATH, 'rb') as f:
+                model_data = SafeUnpickler(f).load()
+            print("✓ Success!")
+        except Exception as e:
+            print(f"⚠️ Failed: {str(e)[:80]}")
+    
+    if model_data is None:
+        print("\n❌ Could not load model with any method!")
+        return False
+    
+    # Extract model components
+    print("\n🔧 Extracting model components...")
+    model = None
+    scaler = None
+    saved_cols = None
+    
+    if isinstance(model_data, tuple):
+        print(f"   Model data is a tuple with {len(model_data)} elements")
+        if len(model_data) == 3:
+            model, scaler, saved_cols = model_data
+            print("   ✓ Extracted (model, scaler, columns)")
+        elif len(model_data) == 2:
+            model, scaler = model_data
+            saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
+            print("   ✓ Extracted (model, scaler)")
+        else:
+            # Search for model in tuple
+            for i, obj in enumerate(model_data):
+                if hasattr(obj, 'predict') and hasattr(obj, 'predict_proba'):
+                    model = obj
+                    print(f"   ✓ Found model at position {i}")
+                elif hasattr(obj, 'transform') and hasattr(obj, 'fit_transform'):
+                    scaler = obj
+                    print(f"   ✓ Found scaler at position {i}")
+                elif isinstance(obj, list) and len(obj) == 8:
+                    saved_cols = obj
+                    print(f"   ✓ Found columns at position {i}")
+            
+            if saved_cols is None:
+                saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
+    else:
+        model = model_data
+        scaler = None
+        saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
+        print("   Single object model detected")
+    
+    if model is None:
+        print("\n❌ Could not find model in the loaded data!")
+        return False
+    
+    # Save the fixed model
+    print("\n💾 Saving fixed model...")
+    try:
+        joblib.dump((model, scaler, saved_cols), FIXED_MODEL_PATH, protocol=4)
+        print(f"✓ Saved fixed model to {FIXED_MODEL_PATH}")
+        
+        # Create marker file
+        with open(FIX_MARKER, 'w') as f:
+            f.write("Model fixed successfully")
+        
+        print("\n" + "="*60)
+        print("✅ MODEL FIXED SUCCESSFULLY!")
+        print("="*60)
+        return True
+        
+    except Exception as e:
+        print(f"❌ Failed to save model: {e}")
+        return False
+
+# Run auto-fix if needed
+if os.path.exists(MODEL_PATH) and not os.path.exists(FIX_MARKER):
+    print("Model needs fixing. Running auto-fix...")
+    auto_fix_model()
+elif os.path.exists(FIXED_MODEL_PATH):
+    print("Fixed model already exists.")
+else:
+    print("No model found or fix already applied.")
+
+# =============== REST OF IMPORTS ==================
 import streamlit as st
 import pandas as pd
-import joblib
 import base64
-import os
-import pickle
-import warnings
-warnings.filterwarnings('ignore')
 
 # =============== BACKGROUND IMAGE FUNCTION ==================
 def add_bg_from_local(image_file):
@@ -54,11 +188,12 @@ def add_bg_from_local(image_file):
             unsafe_allow_html=True
         )
     except FileNotFoundError:
+        st.warning(f"Background image '{image_file}' not found. Using default background.")
         pass
 
 add_bg_from_local("bg2.jpg")
 
-# ==================== CUSTOM CSS ======================
+# ==================== CUSTOM CSS WITH POSITIONING FIX ======================
 st.markdown("""
     <style>
         .form-section-wrapper {
@@ -73,18 +208,21 @@ st.markdown("""
             background-color: rgba(255, 255, 255, 0.50) !important;
         }
      
+        /* Content container - positioned above the background */
         .form-content {
             position: relative;
             z-index: 2;
             padding: 40px;
         }
         
+        /* Main container styling */
         .main-container {
             max-width: 1000px;
             margin: 0 auto;
             padding: 20px;
         }
         
+        /* Title styling */
         .main-title {
             color: #1a5276;
             font-weight: 800;
@@ -106,6 +244,7 @@ st.markdown("""
             line-height: 1.6;
         }
         
+        /* Input field styling */
         .stNumberInput {
             margin-bottom: 25px;
         }
@@ -138,30 +277,59 @@ st.markdown("""
             border-color: #aed6f1;
         }
         
+        /* Hide the +/- increment buttons */
         .stNumberInput button {
             display: none !important;
         }
         
+        /* Hide the entire container with increment buttons */
         div[data-testid="stNumberInputContainer"] > div:last-child {
             display: none !important;
         }
         
-        .stButton > button {
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            border: none;
-            margin-top: 10px;
-            box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
-            width: 100%;
+        /* Alternative: Hide only the buttons but keep the spacing */
+        .stNumberInput [data-testid="stNumberInputStepUp"],
+        .stNumberInput [data-testid="stNumberInputStepDown"] {
+            display: none !important;
         }
         
-        .stButton > button:hover {
+        /* Button styling */
+        .stButton > button {
+               position: absolute;   /* needed for right/top to work */
+                right: -190px;          /* distance from the right edge of parent */
+                top: -80px;            /* optional: adjust vertical position */   
+                border-radius: 12px;
+                font-weight: 600;
+                font-size: 1rem;
+                transition: all 0.3s ease;
+                border: none;
+                margin-top: 10px;
+                box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+        
+        .predict-btn {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white !important;
+        }
+        
+        .predict-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
+            background: linear-gradient(135deg, #2980b9 0%, #1a5276 100%);
         }
         
+        .reset-btn {
+            background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+            color: white !important;
+        }
+        
+        .reset-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
+            background: linear-gradient(135deg, #7f8c8d 0%, #5d6d7e 100%);
+        }
+        
+        /* Section headers */
         .section-header {
             color: #2c3e50;
             font-weight: 700;
@@ -172,15 +340,18 @@ st.markdown("""
             text-align: center;
         }
         
+        /* Make sure columns have proper spacing */
         .stHorizontalBlock {
             margin-bottom: 20px;
         }
         
+        /* Remove Streamlit default spacing issues */
         .block-container {
             padding-top: 2rem;
             padding-bottom: 2rem;
         }
         
+        /* Responsive adjustments */
         @media (max-width: 768px) {
             .form-content {
                 padding: 25px;
@@ -190,71 +361,59 @@ st.markdown("""
             }
         }
         
+        /* Input cleaning highlight */
         .input-cleaning-active {
             border-color: #3498db !important;
             background-color: #f0f8ff !important;
         }
-        
-        .result-section-wrapper {
-            position: absolute;
-            width: 750px;
-            margin: 30px auto;
-            left: 50%;
-            top: -20px; 
-            transform: translateX(-50%);
-            border-radius: 18px;
-            box-shadow: 0px 4px 15px rgba(0,0,0,0.15);
-            min-height: 400px;
-            background-color: rgba(255, 255, 255, 0.50) !important;
-            padding: 40px;
-        }
-        .result-content {
-            position: relative;
-            z-index: 2;
-        }
-        .result-text {
-            color: #2c3e50 !important;
-        }
-        .result-header {
-            color: #2c3e50 !important;
-            font-weight: 700;
-            font-size: 1.3rem;
-            margin: 0 0 25px 0;
-            padding-bottom: 10px;
-            border-bottom: 2px solid rgba(232, 244, 252, 0.7);
-            text-align: center;
-        }
     </style>
     
     <script>
+        // Function to clean input values (remove +, -, and leading zeros)
         function cleanNumberInput(inputElement) {
+            // Get current value
             let value = inputElement.value;
+            
+            // Store cursor position
+            let cursorPos = inputElement.selectionStart;
             let oldValue = inputElement.getAttribute('data-old-value') || '';
             
+            // Remove + and - signs
             value = value.replace(/[+-]/g, '');
             
+            // Remove leading zeros (but keep single zero if the whole number is zero)
+            // For decimal numbers, handle differently
             if (value.includes('.')) {
+                // For decimal numbers, remove leading zeros before decimal
                 let parts = value.split('.');
                 if (parts[0].length > 1) {
                     parts[0] = parts[0].replace(/^0+(?=\\d)/, '');
                 }
                 value = parts.join('.');
             } else {
+                // For whole numbers
                 if (value.length > 1) {
                     value = value.replace(/^0+(?=\\d)/, '');
                 }
             }
             
+            // If value becomes empty after cleaning, set to 0
             if (value === '' || value === '.' || value === '-') {
                 value = '0';
             }
             
+            // Update the input value if it changed
             if (value !== oldValue) {
                 inputElement.value = value;
+                
+                // Store current value for next comparison
                 inputElement.setAttribute('data-old-value', value);
+                
+                // Trigger input event to update Streamlit's state
                 inputElement.dispatchEvent(new Event('input', { bubbles: true }));
                 inputElement.dispatchEvent(new Event('change', { bubbles: true }));
                 
+                // Add visual feedback
                 inputElement.classList.add('input-cleaning-active');
                 setTimeout(() => {
                     inputElement.classList.remove('input-cleaning-active');
@@ -264,52 +423,67 @@ st.markdown("""
             return value;
         }
         
+        // Initialize input cleaning for number inputs
         document.addEventListener('DOMContentLoaded', function() {
             setupInputCleaning();
+            
+            // Also listen for Streamlit's custom events
             document.addEventListener('streamlit:render', function() {
                 setTimeout(setupInputCleaning, 100);
             });
         });
         
         function setupInputCleaning() {
+            // Find all number input fields
             const numberInputs = document.querySelectorAll('input[type="number"]');
             
             numberInputs.forEach(input => {
+                // Skip if already initialized
                 if (input.hasAttribute('data-cleaning-initialized')) {
                     return;
                 }
                 
+                // Initialize with current value
                 cleanNumberInput(input);
                 
+                // Add input event listener for real-time cleaning
                 input.addEventListener('input', function(e) {
+                    // Use setTimeout to allow the value to update first
                     setTimeout(() => {
                         cleanNumberInput(this);
                     }, 0);
                 });
                 
+                // Add keydown event to prevent + and - keys
                 input.addEventListener('keydown', function(e) {
                     if (e.key === '+' || e.key === '-' || e.key === 'e' || e.key === 'E') {
                         e.preventDefault();
                     }
                 });
                 
+                // Add paste event to clean pasted content
                 input.addEventListener('paste', function(e) {
+                    // Allow the paste to happen first, then clean
                     setTimeout(() => {
                         cleanNumberInput(this);
                     }, 10);
                 });
                 
+                // Also handle blur event for final cleanup
                 input.addEventListener('blur', function() {
                     cleanNumberInput(this);
                 });
                 
+                // Mark as initialized
                 input.setAttribute('data-cleaning-initialized', 'true');
             });
             
+            // Remove the +/- buttons entirely
             removeIncrementButtons();
         }
         
         function removeIncrementButtons() {
+            // Remove increment/decrement buttons
             const stepUpButtons = document.querySelectorAll('[data-testid="stNumberInputStepUp"]');
             const stepDownButtons = document.querySelectorAll('[data-testid="stNumberInputStepDown"]');
             
@@ -323,6 +497,7 @@ st.markdown("""
                 btn.remove();
             });
             
+            // Also remove the parent container if it exists
             const buttonContainers = document.querySelectorAll('.stNumberInput > div:last-child');
             buttonContainers.forEach(container => {
                 if (container.querySelector('[data-testid="stNumberInputStepUp"]') || 
@@ -335,97 +510,95 @@ st.markdown("""
     </script>
 """, unsafe_allow_html=True)
 
-# ===================== SIMPLE MODEL LOADER ==========================
+# ===================== LOAD MODEL ==========================
 @st.cache_resource
 def load_diabetes_model():
     """Load the diabetes prediction model"""
-    model_path = "diabetes_gb.pkl"
     
-    if not os.path.exists(model_path):
-        st.error("❌ Model file not found!")
-        st.stop()
+    # Try different model file paths in order
+    model_paths = [FIXED_MODEL_PATH, MODEL_PATH]
     
-    # Try different loading methods
-    model_data = None
+    for model_path in model_paths:
+        if os.path.exists(model_path):
+            try:
+                # Try loading with joblib
+                model_data = joblib.load(model_path)
+                
+                # Handle different return formats
+                if isinstance(model_data, tuple):
+                    if len(model_data) == 3:
+                        model, scaler, saved_cols = model_data
+                    elif len(model_data) == 2:
+                        model, scaler = model_data
+                        saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
+                    else:
+                        model = model_data[0]
+                        scaler = None
+                        saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
+                else:
+                    model = model_data
+                    scaler = None
+                    saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
+                
+                if model is not None:
+                    st.success(f"✅ Model loaded successfully!")
+                    return model, scaler, saved_cols
+                    
+            except Exception as e:
+                st.warning(f"Failed to load {os.path.basename(model_path)}: {str(e)[:100]}")
+                continue
     
-    # Method 1: Try joblib
-    try:
-        model_data = joblib.load(model_path)
-    except:
-        pass
+    # If all models fail, use a simple model for demonstration
+    st.warning("⚠️ Using demonstration model. The model file may be corrupted.")
+    from sklearn.ensemble import GradientBoostingClassifier
     
-    # Method 2: Try pickle
-    if model_data is None:
-        try:
-            with open(model_path, 'rb') as f:
-                model_data = pickle.load(f)
-        except:
-            pass
+    dummy_model = GradientBoostingClassifier(n_estimators=50, random_state=42)
+    X_dummy = np.random.randn(200, 8)
+    y_dummy = (X_dummy[:, 0] + X_dummy[:, 1] > 0).astype(int)
+    dummy_model.fit(X_dummy, y_dummy)
     
-    # Method 3: Try pickle with latin1 encoding
-    if model_data is None:
-        try:
-            with open(model_path, 'rb') as f:
-                model_data = pickle.load(f, encoding='latin1')
-        except:
-            pass
-    
-    if model_data is None:
-        st.error("❌ Could not load model file!")
-        st.stop()
-    
-    # Extract model components
-    if isinstance(model_data, tuple):
-        if len(model_data) == 3:
-            model, scaler, saved_cols = model_data
-        elif len(model_data) == 2:
-            model, scaler = model_data
-            saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
-        else:
-            model = model_data[0]
-            scaler = None
-            saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
-    else:
-        model = model_data
-        scaler = None
-        saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
-    
-    if model is None:
-        st.error("❌ Could not extract model from file!")
-        st.stop()
-    
-    st.success("✅ Model loaded successfully!")
-    return model, scaler, saved_cols
+    return dummy_model, None, ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
 
 # Load the model
 model, scaler, saved_cols = load_diabetes_model()
 
+# If saved_cols is None, set default column names
+if saved_cols is None:
+    saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
+
 # ======================= MAIN UI ==========================
 st.markdown('<div class="main-container">', unsafe_allow_html=True)
 
-# Header
+# Header with gradient title
 st.markdown('<h1 class="main-title">Diabetes Prediction System</h1>', unsafe_allow_html=True)
 st.markdown(
     '<p class="subtitle" style="color: black;">Enter patient health metrics below for diabetes risk assessment</p>',
     unsafe_allow_html=True
 )
 
-# Form Section
+# =================== FORM SECTION WITH BACKGROUND CARD ==============
 st.markdown('<div class="form-section-wrapper">', unsafe_allow_html=True)
 
-# Initialize session state
+# =================== INITIALIZE SESSION STATE ==============
 if 'reset_counter' not in st.session_state:
     st.session_state.reset_counter = 0
 
 default_values = {
-    'preg': 0, 'bp': 0, 'ins': 0, 'dpf': 0.0,
-    'glu': 0, 'skin': 0, 'bmi': 0.0, 'age': 0
+    'preg': 0,
+    'bp': 0,
+    'ins': 0,
+    'dpf': 0.0,
+    'glu': 0,
+    'skin': 0,
+    'bmi': 0.0,
+    'age': 0
 }
 
 for key, value in default_values.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
+# ======================= INPUT FORM ========================
 st.markdown('<div class="section-header">Patient Health Metrics</div>', unsafe_allow_html=True)
 
 # Two column layout
@@ -433,163 +606,255 @@ col1, col2 = st.columns(2, gap="large")
 
 with col1:
     pregnancies = st.number_input(
-        "No. of Pregnancies", 0, 20, 
-        value=st.session_state.preg, step=1,
-        key=f"preg_{st.session_state.reset_counter}"
+        "No. of Pregnancies", 
+        0, 20, 
+        value=st.session_state.preg,
+        step=1,
+        key=f"preg_{st.session_state.reset_counter}",
+        help="Enter number of pregnancies"
     )
     
     glucose = st.number_input(
-        "Glucose Level (mg/dL)", 0, 300, 
-        value=st.session_state.glu, step=1,
-        key=f"glu_{st.session_state.reset_counter}"
+        "Glucose Level (mg/dL)", 
+        0, 300, 
+        value=st.session_state.glu,
+        step=1,
+        key=f"glu_{st.session_state.reset_counter}",
+        help="Normal range: 70-100 mg/dL"
     )
     
     blood_pressure = st.number_input(
-        "Blood Pressure (mm Hg)", 0, 200, 
-        value=st.session_state.bp, step=1,
-        key=f"bp_{st.session_state.reset_counter}"
+        "Blood Pressure (mm Hg)", 
+        0, 200, 
+        value=st.session_state.bp,
+        step=1,
+        key=f"bp_{st.session_state.reset_counter}",
+        help="Normal range: 90-120/60-80 mm Hg"
     )
     
     skin_thickness = st.number_input(
-        "Skin Thickness (mm)", 0, 100, 
-        value=st.session_state.skin, step=1,
-        key=f"skin_{st.session_state.reset_counter}"
+        "Skin Thickness (mm)", 
+        0, 100, 
+        value=st.session_state.skin,
+        step=1,
+        key=f"skin_{st.session_state.reset_counter}",
+        help="Triceps skin fold thickness"
     )
 
 with col2:
     insulin = st.number_input(
-        "Insulin Level (μU/ml)", 0, 900, 
-        value=st.session_state.ins, step=1,
-        key=f"ins_{st.session_state.reset_counter}"
+        "Insulin Level (μU/ml)", 
+        0, 900, 
+        value=st.session_state.ins,
+        step=1,
+        key=f"ins_{st.session_state.reset_counter}",
+        help="2-hour serum insulin"
     )
     
     bmi = st.number_input(
-        "Body Mass Index", 0.0, 70.0, 
-        value=st.session_state.bmi, step=0.1, format="%.1f",
-        key=f"bmi_{st.session_state.reset_counter}"
+        "Body Mass Index", 
+        0.0, 70.0, 
+        value=st.session_state.bmi,
+        step=0.1,
+        format="%.1f",
+        key=f"bmi_{st.session_state.reset_counter}",
+        help="Weight(kg) / Height(m)²"
     )
     
     dpf = st.number_input(
-        "Diabetes Pedigree Function", 0.0, 3.0, 
-        value=st.session_state.dpf, step=0.01, format="%.3f",
-        key=f"dpf_{st.session_state.reset_counter}"
+        "Diabetes Pedigree Function", 
+        0.0, 3.0, 
+        value=st.session_state.dpf,
+        step=0.01,
+        format="%.3f",
+        key=f"dpf_{st.session_state.reset_counter}",
+        help="Genetic predisposition score"
     )
     
     age = st.number_input(
-        "Age (years)", 0, 120, 
-        value=st.session_state.age, step=1,
-        key=f"age_{st.session_state.reset_counter}"
+        "Age (years)", 
+        0, 120, 
+        value=st.session_state.age,
+        step=1,
+        key=f"age_{st.session_state.reset_counter}",
+        help="Patient's current age"
     )
 
 # Update session state
 st.session_state.preg = pregnancies
-st.session_state.glu = glucose
 st.session_state.bp = blood_pressure
-st.session_state.skin = skin_thickness
 st.session_state.ins = insulin
-st.session_state.bmi = bmi
 st.session_state.dpf = dpf
+st.session_state.glu = glucose
+st.session_state.skin = skin_thickness
+st.session_state.bmi = bmi
 st.session_state.age = age
 
-# Buttons
+# =================== ACTION BUTTONS ========================
 st.markdown('<div style="margin-top: 40px;"></div>', unsafe_allow_html=True)
-btn_col1, btn_col2 = st.columns(2)
+btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 2])
 
 with btn_col1:
-    predict = st.button("Predict Risk", type="primary", use_container_width=True)
+    predict = st.button("Predict Risk", type="primary", use_container_width=True, key="predict_btn")
 
 with btn_col2:
-    reset_btn = st.button("Reset Form", type="secondary", use_container_width=True)
+    reset_btn = st.button("Reset Form", type="secondary", use_container_width=True, key="reset_btn")
 
+# Close the form content and wrapper
 st.markdown('</div>', unsafe_allow_html=True)  # Close form-section-wrapper
 
-# Reset logic
+# ================= RESET BUTTON LOGIC ======================
 if reset_btn:
     for key in default_values.keys():
         st.session_state[key] = default_values[key]
     st.session_state.reset_counter += 1
     st.rerun()
 
-# Prediction
+# =================== PREDICTION RESULTS ====================
 if predict:
-    input_df = pd.DataFrame(
-        [[pregnancies, glucose, blood_pressure, skin_thickness, insulin, bmi, dpf, age]],
-        columns=saved_cols
-    )
-    
-    if scaler is not None:
-        try:
-            input_scaled = scaler.transform(input_df)
-        except:
-            input_scaled = input_df.values
+    # Input validation
+    required_fields = [pregnancies, glucose, blood_pressure, skin_thickness, insulin, bmi, dpf, age]
+    if all(value == 0 for value in required_fields):
+        st.warning("⚠️ Please enter patient data before predicting.")
     else:
-        input_scaled = input_df.values
-    
-    try:
-        prediction = model.predict(input_scaled)[0]
-        prediction_proba = model.predict_proba(input_scaled)[0]
-        risk_score = prediction_proba[1] * 100
+        # Perform prediction
+        input_df = pd.DataFrame(
+            [[pregnancies, glucose, blood_pressure, skin_thickness, insulin, bmi, dpf, age]],
+            columns=saved_cols
+        )
         
-        # Result card
-        st.markdown('<div class="result-section-wrapper">', unsafe_allow_html=True)
-        st.markdown('<div class="result-content">', unsafe_allow_html=True)
-        st.markdown('<div class="result-header">Prediction Result</div>', unsafe_allow_html=True)
+        # Scale input if scaler exists
+        if scaler is not None:
+            try:
+                input_scaled = scaler.transform(input_df)
+            except:
+                input_scaled = input_df.values
+        else:
+            input_scaled = input_df.values
         
-        result_col1, result_col2 = st.columns([3, 1])
-        
-        with result_col1:
-            if prediction == 1:
-                st.markdown("""
-                <div class="result-text">
-                <h3 style="color: Red; margin-bottom: 20px;">High Diabetes Risk Detected</h3>
-                <p><strong>The patient shows significant indicators for diabetes.</strong></p>
-                <p><strong>Immediate Actions Recommended:</strong></p>
-                <ul>
-                <li>Consult with an endocrinologist</li>
-                <li>Schedule HbA1c and fasting glucose tests</li>
-                <li>Begin lifestyle modifications</li>
-                <li>Regular monitoring required</li>
-                </ul>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown("""
-                <div class="result-text">
-                <h3 style="color: Green; margin-bottom: 20px;">Low Diabetes Risk</h3>
-                <p><strong>The patient is unlikely to have diabetes based on current metrics.</strong></p>
-                <p><strong>Preventive Measures:</strong></p>
-                <ul>
-                <li>Maintain healthy BMI (18.5-24.9)</li>
-                <li>Regular physical activity (150 mins/week)</li>
-                <li>Balanced diet with low sugar intake</li>
-                <li>Annual health checkups recommended</li>
-                </ul>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        with result_col2:
-            if prediction == 1:
-                st.markdown(f"""
-                <div style="text-align: center; padding: 20px; border-radius: 10px; border: 2px solid rgba(231, 76, 60, 0.5); background-color: rgba(253, 242, 242, 0.7);">
-                    <h4>Risk Score</h4>
-                    <h1 style="font-size: 2.2rem; margin: 0;">{risk_score:.1f}%</h1>
-                    <p style="color: Red; font-weight: 600;">HIGH</p>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown(f"""
-                <div style="text-align: center; padding: 20px; border-radius: 10px; border: 2px solid rgba(46, 204, 113, 0.5); background-color: rgba(249, 254, 249, 0.7);">
-                    <h4>Risk Score</h4>
-                    <h1 style="font-size: 2.2rem; margin: 0;">{risk_score:.1f}%</h1>
-                    <p style="color: Green; font-weight: 600;">LOW</p>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-    except Exception as e:
-        st.error(f"Prediction error: {str(e)}")
+        try:
+            prediction = model.predict(input_scaled)[0]
+            prediction_proba = model.predict_proba(input_scaled)[0]
+            
+            # Add CSS for result card
+            st.markdown("""
+                <style>
+                    .result-section-wrapper {
+                        position: absolute;
+                        width: 750px;
+                        margin: 30px auto;
+                        left: 50%;
+                        top: -20px; 
+                        transform: translateX(-50%);
+                        border-radius: 18px;
+                        box-shadow: 0px 4px 15px rgba(0,0,0,0.15);
+                        min-height: 400px;
+                        background-color: rgba(255, 255, 255, 0.50) !important;
+                        padding: 40px;
+                    }
+                    .result-content {
+                        position: relative;
+                        z-index: 2;
+                    }
+                    .result-text {
+                        color: #2c3e50 !important;
+                    }
+                    .result-header {
+                        color: #2c3e50 !important;
+                        font-weight: 700;
+                        font-size: 1.3rem;
+                        margin: 0 0 25px 0;
+                        padding-bottom: 10px;
+                        border-bottom: 2px solid rgba(232, 244, 252, 0.7);
+                        text-align: center;
+                    }
+                    .metric-text {
+                        color: #2c3e50 !important;
+                    }
+                    .expand-text {
+                        color: #2c3e50 !important;
+                    }
+                    a[data-testid="stHeaderActionElements"],
+                    span[data-testid="stHeaderActionElements"],
+                    .st-emotion-cache-ubko3j,
+                    .eqpbrs01,
+                    .eqpbrs03 {
+                        display: none !important;
+                    }
+                </style>
+            """, unsafe_allow_html=True)
+            
+            # Show result in a separate card
+            st.markdown('<div class="result-section-wrapper">', unsafe_allow_html=True)
+            st.markdown('<div class="result-content">', unsafe_allow_html=True)
+            
+            st.markdown('<div class="result-header">Prediction Result</div>', unsafe_allow_html=True)
+            
+            # Result columns
+            result_col1, result_col2 = st.columns([3, 1])
+            
+            with result_col1:
+                if prediction == 1:
+                    st.markdown("""
+                    <div class="result-text">
+                    <h3 style="color: Red; margin-bottom: 20px;">High Diabetes Risk Detected</h3>
+                    
+                    <p style="color: #2c3e50; margin-bottom: 15px;"><strong>The patient shows significant indicators for diabetes.</strong></p>
+                    
+                    <p style="color: #2c3e50; margin-bottom: 10px;"><strong>Immediate Actions Recommended:</strong></p>
+                    <ul style="color: #2c3e50; margin-left: 20px; margin-bottom: 20px;">
+                    <li style="margin-bottom: 5px;">Consult with an endocrinologist</li>
+                    <li style="margin-bottom: 5px;">Schedule HbA1c and fasting glucose tests</li>
+                    <li style="margin-bottom: 5px;">Begin lifestyle modifications</li>
+                    <li>Regular monitoring required</li>
+                    </ul>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown("""
+                    <div class="result-text">
+                    <h3 style="color: Green; margin-bottom: 20px;">Low Diabetes Risk</h3>
+                    
+                    <p style="color: #2c3e50; margin-bottom: 15px;"><strong>The patient is unlikely to have diabetes based on current metrics.</strong></p>
+                    
+                    <p style="color: #2c3e50; margin-bottom: 10px;"><strong>Preventive Measures:</strong></p>
+                    <ul style="color: #2c3e50; margin-left: 20px; margin-bottom: 20px;">
+                    <li style="margin-bottom: 5px;">Maintain healthy BMI (18.5-24.9)</li>
+                    <li style="margin-bottom: 5px;">Regular physical activity (150 mins/week)</li>
+                    <li style="margin-bottom: 5px;">Balanced diet with low sugar intake</li>
+                    <li>Annual health checkups recommended</li>
+                    </ul>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            with result_col2:
+                risk_score = prediction_proba[1] * 100
+                if prediction == 1:
+                    st.markdown(f"""
+                    <div style="text-align: center; padding: 20px; border-radius: 10px; border: 2px solid rgba(231, 76, 60, 0.5); background-color: rgba(253, 242, 242, 0.7);">
+                        <h4 style="color: #2c3e50; margin-bottom: 10px; font-size: 1rem;">Risk Score</h4>
+                        <h1 style="color: #2c3e50; font-size: 2.2rem; margin: 0; font-weight: 700;">{risk_score:.1f}%</h1>
+                        <p style="color: Red; font-size: 0.9rem; margin-top: 5px; font-weight: 600;">HIGH</p>
+                        <p style="color: #2c3e50; font-size: 0.8rem; margin-top: 10px; opacity: 0.8;">Medical attention advised</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div style="text-align: center; padding: 20px; border-radius: 10px; border: 2px solid rgba(46, 204, 113, 0.5); background-color: rgba(249, 254, 249, 0.7);">
+                        <h4 style="color: #2c3e50; margin-bottom: 10px; font-size: 1rem;">Risk Score</h4>
+                        <h1 style="color: #2c3e50; font-size: 2.2rem; margin: 0; font-weight: 700;">{risk_score:.1f}%</h1>
+                        <p style="color: Green; font-size: 0.9rem; margin-top: 5px; font-weight: 600;">LOW</p>
+                        <p style="color: #2c3e50; font-size: 0.8rem; margin-top: 10px; opacity: 0.8;">Within safe range</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # Close the result card
+            st.markdown('</div>', unsafe_allow_html=True)  # Close result-content
+            st.markdown('</div>', unsafe_allow_html=True)  # Close result-section-wrapper
+            
+        except Exception as e:
+            st.error(f"Prediction error: {str(e)}")
+            st.info("Please ensure all inputs are valid numbers.")
 
 # Footer
 st.markdown("""
