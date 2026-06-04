@@ -265,18 +265,7 @@ st.markdown("""
         text-align: center;
     }
     
-    /* Center the buttons */
-    div[data-testid="column"]:has(button) {
-        display: flex;
-        justify-content: center;
-    }
-    
-    .stButton {
-        display: flex;
-        justify-content: center;
-        width: 100%;
-    }
-    
+    /* Buttons side by side */
     .stButton > button {
         background-color: #1f6e8c !important;
         color: white !important;
@@ -285,20 +274,13 @@ st.markdown("""
         font-weight: 600 !important;
         border: none !important;
         transition: all 0.3s ease !important;
-        width: auto !important;
-        min-width: 150px !important;
+        width: 100% !important;
     }
     
     .stButton > button:hover {
         background-color: #0e5a75 !important;
         transform: translateY(-2px);
         box-shadow: 0 8px 20px rgba(0,0,0,0.15) !important;
-    }
-    
-    /* Center columns for buttons */
-    .row-widget.stButton {
-        justify-content: center;
-        display: flex;
     }
     
     /* Make number inputs look better */
@@ -315,6 +297,11 @@ st.markdown("""
     
     /* Subheader styling */
     .stMarkdown h3 {
+        color: #1a4c64;
+        font-weight: 600;
+    }
+    
+    .stMarkdown h4 {
         color: #1a4c64;
         font-weight: 600;
     }
@@ -465,18 +452,18 @@ with col2:
         key="age_input"
     )
 
-# Buttons - centered using columns
-col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
-with col_btn2:
+# Buttons - side by side
+st.markdown("---")
+btn_col1, btn_col2 = st.columns(2, gap="medium")
+
+with btn_col1:
     predict_btn = st.button("Predict Risk", type="primary", use_container_width=True)
+
+with btn_col2:
     reset_btn = st.button("Reset Form", use_container_width=True)
 
 # Reset logic
 if reset_btn:
-    st.session_state.reset = True
-    st.rerun()
-
-if st.session_state.reset:
     st.session_state.pregnancies_input = defaults['pregnancies']
     st.session_state.glucose_input = defaults['glucose']
     st.session_state.bp_input = defaults['bp']
@@ -485,7 +472,6 @@ if st.session_state.reset:
     st.session_state.bmi_input = defaults['bmi']
     st.session_state.dpf_input = defaults['dpf']
     st.session_state.age_input = defaults['age']
-    st.session_state.reset = False
     st.rerun()
 
 # Prediction
@@ -525,9 +511,9 @@ if predict_btn:
                 
                 col_info1, col_info2 = st.columns(2)
                 with col_info1:
-                    st.metric("Confidence Level", f"{max(proba)*100:.1f}%")
+                    st.metric("Confidence Level", f"{max(proba)*100:.1f}%", "High Risk")
                 with col_info2:
-                    st.metric("Risk Category", "HIGH")
+                    st.metric("Risk Category", "HIGH", "Medical attention needed")
                 
                 st.info("""
                 **Immediate Actions Recommended:**
@@ -543,9 +529,9 @@ if predict_btn:
                 
                 col_info1, col_info2 = st.columns(2)
                 with col_info1:
-                    st.metric("Confidence Level", f"{max(proba)*100:.1f}%")
+                    st.metric("Confidence Level", f"{max(proba)*100:.1f}%", "Low Risk")
                 with col_info2:
-                    st.metric("Risk Category", "LOW")
+                    st.metric("Risk Category", "LOW", "Preventive measures")
                 
                 st.info("""
                 **Preventive Measures:**
