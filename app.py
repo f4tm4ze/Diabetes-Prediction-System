@@ -4,6 +4,7 @@ import joblib
 import base64
 import os
 import pickle
+import sys
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -222,13 +223,13 @@ st.markdown("""
                 // For decimal numbers, remove leading zeros before decimal
                 let parts = value.split('.');
                 if (parts[0].length > 1) {
-                   parts[0] = parts[0].replace(/^0+(?=\\d)/, '');
+                    parts[0] = parts[0].replace(/^0+(?=\\d)/, '');
                 }
                 value = parts.join('.');
             } else {
                 // For whole numbers
                 if (value.length > 1) {
-                    value = value.replace(/^0+(?=\d)/, '');
+                    value = value.replace(/^0+(?=\\d)/, '');
                 }
             }
             
@@ -357,11 +358,8 @@ def load_diabetes_model():
         st.info("Please ensure the model file is uploaded to the repository.")
         st.stop()
     
-    # Try multiple loading strategies
-    load_errors = []
-    
-    # Strategy 1: Normal joblib load
     try:
+        # Try loading normally
         model_data = joblib.load(model_path)
         
         # Handle different return formats
@@ -370,11 +368,15 @@ def load_diabetes_model():
                 model, scaler, saved_cols = model_data
             elif len(model_data) == 2:
                 model, scaler = model_data
-                saved_cols = None
+                saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
             else:
-                model, scaler, saved_cols = model_data[0], None, None
+                model = model_data[0]
+                scaler = None
+                saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
         else:
-            model, scaler, saved_cols = model_data, None, None
+            model = model_data
+            scaler = None
+            saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
         
         # Configure scaler if it exists
         if scaler is not None and hasattr(scaler, 'set_output'):
@@ -383,70 +385,53 @@ def load_diabetes_model():
         return model, scaler, saved_cols
         
     except Exception as e:
-        load_errors.append(f"Joblib load: {str(e)}")
-    
-    # Strategy 2: Try with pickle
-    try:
-        with open(model_path, 'rb') as f:
-            model_data = pickle.load(f)
+        st.error(f"❌ Error loading model: {str(e)}")
         
-        if isinstance(model_data, tuple):
-            if len(model_data) == 3:
-                model, scaler, saved_cols = model_data
-            elif len(model_data) == 2:
-                model, scaler = model_data
-                saved_cols = None
+        # Try alternative loading with pickle
+        try:
+            with open(model_path, 'rb') as f:
+                model_data = pickle.load(f)
+            
+            if isinstance(model_data, tuple):
+                if len(model_data) == 3:
+                    model, scaler, saved_cols = model_data
+                elif len(model_data) == 2:
+                    model, scaler = model_data
+                    saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
+                else:
+                    model = model_data[0]
+                    scaler = None
+                    saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
             else:
-                model, scaler, saved_cols = model_data[0], None, None
-        else:
-            model, scaler, saved_cols = model_data, None, None
-        
-        if scaler is not None and hasattr(scaler, 'set_output'):
-            scaler = scaler.set_output(transform='pandas')
-        
-        return model, scaler, saved_cols
-        
-    except Exception as e:
-        load_errors.append(f"Pickle load: {str(e)}")
-    
-    # If all strategies fail, show error
-    st.error("❌ Failed to load the diabetes prediction model")
-    
-    with st.expander("🔧 Troubleshooting Information"):
-        st.write("**Load Errors:**")
-        for error in load_errors:
-            st.code(error)
-        
-        st.write("**Required Package Versions:**")
-        st.code("""
-        scikit-learn==1.6.1
-        pandas>=2.0.0
-        numpy>=1.24.0
-        joblib>=1.3.0
-        """)
-        
-        st.write("**Current Package Versions:**")
-        try:
-            import sklearn
-            st.write(f"- scikit-learn: {sklearn.__version__}")
-        except:
-            st.write("- scikit-learn: Not installed")
-        
-        try:
-            import pandas as pd
-            st.write(f"- pandas: {pd.__version__}")
-        except:
-            st.write("- pandas: Not installed")
-    
-    st.stop()
+                model = model_data
+                scaler = None
+                saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
+            
+            st.success("✅ Model loaded successfully with alternative method!")
+            return model, scaler, saved_cols
+            
+        except Exception as e2:
+            st.error(f"❌ Alternative loading also failed: {str(e2)}")
+            st.markdown("""
+            ### Troubleshooting Steps:
+            1. Make sure your `requirements.txt` has exactly:
+            2. The model was saved with scikit-learn 1.6.1
+3. Add a `runtime.txt` file with `python-3.11`
+4. Restart the app after updating requirements
+""")
+st.stop()
 
-# Load the model
+            # Load the model
 model, scaler, saved_cols = load_diabetes_model()
 
 # Verify model loaded successfully
 if model is None:
-    st.error("Model could not be loaded. Please check the error messages above.")
-    st.stop()
+st.error("Model could not be loaded. Please check the error messages above.")
+st.stop()
+
+# If saved_cols is None, set default column names
+if saved_cols is None:
+saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
 
 # ======================= MAIN UI ==========================
 st.markdown('<div class="main-container">', unsafe_allow_html=True)
@@ -454,8 +439,8 @@ st.markdown('<div class="main-container">', unsafe_allow_html=True)
 # Header with gradient title
 st.markdown('<h1 class="main-title">Diabetes Prediction System</h1>', unsafe_allow_html=True)
 st.markdown(
-    '<p class="subtitle" style="color: black;">Enter patient health metrics below for diabetes risk assessment</p>',
-    unsafe_allow_html=True
+'<p class="subtitle" style="color: black;">Enter patient health metrics below for diabetes risk assessment</p>',
+unsafe_allow_html=True
 )
 
 # =================== FORM SECTION WITH BACKGROUND CARD ==============
@@ -463,22 +448,22 @@ st.markdown('<div class="form-section-wrapper">', unsafe_allow_html=True)
 
 # =================== INITIALIZE SESSION STATE ==============
 if 'reset_counter' not in st.session_state:
-    st.session_state.reset_counter = 0
+st.session_state.reset_counter = 0
 
 default_values = {
-    'preg': 0,
-    'bp': 0,
-    'ins': 0,
-    'dpf': 0.0,
-    'glu': 0,
-    'skin': 0,
-    'bmi': 0.0,
-    'age': 0
+'preg': 0,
+'bp': 0,
+'ins': 0,
+'dpf': 0.0,
+'glu': 0,
+'skin': 0,
+'bmi': 0.0,
+'age': 0
 }
 
 for key, value in default_values.items():
-    if key not in st.session_state:
-        st.session_state[key] = value
+if key not in st.session_state:
+st.session_state[key] = value
 
 # ======================= INPUT FORM ========================
 st.markdown('<div class="section-header">Patient Health Metrics</div>', unsafe_allow_html=True)
@@ -487,80 +472,80 @@ st.markdown('<div class="section-header">Patient Health Metrics</div>', unsafe_a
 col1, col2 = st.columns(2, gap="large")
 
 with col1:
-    pregnancies = st.number_input(
-        "No. of Pregnancies", 
-        0, 20, 
-        value=st.session_state.preg,
-        step=1,
-        key=f"preg_{st.session_state.reset_counter}",
-        help="Enter number of pregnancies"
-    )
-    
-    glucose = st.number_input(
-        "Glucose Level (mg/dL)", 
-        0, 300, 
-        value=st.session_state.glu,
-        step=1,
-        key=f"glu_{st.session_state.reset_counter}",
-        help="Normal range: 70-100 mg/dL"
-    )
-    
-    blood_pressure = st.number_input(
-        "Blood Pressure (mm Hg)", 
-        0, 200, 
-        value=st.session_state.bp,
-        step=1,
-        key=f"bp_{st.session_state.reset_counter}",
-        help="Normal range: 90-120/60-80 mm Hg"
-    )
-    
-    skin_thickness = st.number_input(
-        "Skin Thickness (mm)", 
-        0, 100, 
-        value=st.session_state.skin,
-        step=1,
-        key=f"skin_{st.session_state.reset_counter}",
-        help="Triceps skin fold thickness"
-    )
+pregnancies = st.number_input(
+"No. of Pregnancies", 
+0, 20, 
+value=st.session_state.preg,
+step=1,
+key=f"preg_{st.session_state.reset_counter}",
+help="Enter number of pregnancies"
+)
+
+glucose = st.number_input(
+"Glucose Level (mg/dL)", 
+0, 300, 
+value=st.session_state.glu,
+step=1,
+key=f"glu_{st.session_state.reset_counter}",
+help="Normal range: 70-100 mg/dL"
+)
+
+blood_pressure = st.number_input(
+"Blood Pressure (mm Hg)", 
+0, 200, 
+value=st.session_state.bp,
+step=1,
+key=f"bp_{st.session_state.reset_counter}",
+help="Normal range: 90-120/60-80 mm Hg"
+)
+
+skin_thickness = st.number_input(
+"Skin Thickness (mm)", 
+0, 100, 
+value=st.session_state.skin,
+step=1,
+key=f"skin_{st.session_state.reset_counter}",
+help="Triceps skin fold thickness"
+)
 
 with col2:
-    insulin = st.number_input(
-        "Insulin Level (μU/ml)", 
-        0, 900, 
-        value=st.session_state.ins,
-        step=1,
-        key=f"ins_{st.session_state.reset_counter}",
-        help="2-hour serum insulin"
-    )
-    
-    bmi = st.number_input(
-        "Body Mass Index", 
-        0.0, 70.0, 
-        value=st.session_state.bmi,
-        step=0.1,
-        format="%.1f",
-        key=f"bmi_{st.session_state.reset_counter}",
-        help="Weight(kg) / Height(m)²"
-    )
-    
-    dpf = st.number_input(
-        "Diabetes Pedigree Function", 
-        0.0, 3.0, 
-        value=st.session_state.dpf,
-        step=0.01,
-        format="%.3f",
-        key=f"dpf_{st.session_state.reset_counter}",
-        help="Genetic predisposition score"
-    )
-    
-    age = st.number_input(
-        "Age (years)", 
-        0, 120, 
-        value=st.session_state.age,
-        step=1,
-        key=f"age_{st.session_state.reset_counter}",
-        help="Patient's current age"
-    )
+insulin = st.number_input(
+"Insulin Level (μU/ml)", 
+0, 900, 
+value=st.session_state.ins,
+step=1,
+key=f"ins_{st.session_state.reset_counter}",
+help="2-hour serum insulin"
+)
+
+bmi = st.number_input(
+"Body Mass Index", 
+0.0, 70.0, 
+value=st.session_state.bmi,
+step=0.1,
+format="%.1f",
+key=f"bmi_{st.session_state.reset_counter}",
+help="Weight(kg) / Height(m)²"
+)
+
+dpf = st.number_input(
+"Diabetes Pedigree Function", 
+0.0, 3.0, 
+value=st.session_state.dpf,
+step=0.01,
+format="%.3f",
+key=f"dpf_{st.session_state.reset_counter}",
+help="Genetic predisposition score"
+)
+
+age = st.number_input(
+"Age (years)", 
+0, 120, 
+value=st.session_state.age,
+step=1,
+key=f"age_{st.session_state.reset_counter}",
+help="Patient's current age"
+)
 
 # Update session state
 st.session_state.preg = pregnancies
@@ -577,167 +562,166 @@ st.markdown('<div style="margin-top: 40px;"></div>', unsafe_allow_html=True)
 btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 2])
 
 with btn_col1:
-    predict = st.button("Predict Risk", type="primary", use_container_width=True, key="predict_btn")
+predict = st.button("Predict Risk", type="primary", use_container_width=True, key="predict_btn")
 
 with btn_col2:
-    reset_btn = st.button("Reset Form", type="secondary", use_container_width=True, key="reset_btn")
+reset_btn = st.button("Reset Form", type="secondary", use_container_width=True, key="reset_btn")
 
 # Close the form content and wrapper
 st.markdown('</div>', unsafe_allow_html=True)  # Close form-section-wrapper
 
 # ================= RESET BUTTON LOGIC ======================
 if reset_btn:
-    for key in default_values.keys():
-        st.session_state[key] = default_values[key]
-    st.session_state.reset_counter += 1
-    st.rerun()
+for key in default_values.keys():
+st.session_state[key] = default_values[key]
+st.session_state.reset_counter += 1
+st.rerun()
 
 # =================== PREDICTION RESULTS ====================
 if predict:
-    # Input validation
-    required_fields = [pregnancies, glucose, blood_pressure, skin_thickness, insulin, bmi, dpf, age]
-    if all(value == 0 for value in required_fields):
-        st.warning("⚠️ Please enter patient data before predicting.")
-    else:
-        # Perform prediction
-        input_df = pd.DataFrame(
-            [[pregnancies, glucose, blood_pressure, skin_thickness, insulin, bmi, dpf, age]],
-            columns=saved_cols if saved_cols is not None else ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
-        )
-        
-        # Scale input if scaler exists
-        if scaler is not None:
-            input_scaled = scaler.transform(input_df)
-        else:
-            input_scaled = input_df.values
-        
-        prediction = model.predict(input_scaled)[0]
-        prediction_proba = model.predict_proba(input_scaled)[0]
-        
-        # Add CSS for result card with same style as form
-        st.markdown("""
-            <style>
-                .result-section-wrapper {
-                    position: absolute;
-                    width: 750px;
-                    margin: 30px auto;
-                    left: 50%;
-                    top: -20px; 
-                    transform: translateX(-50%);
-                    border-radius: 18px;
-                    box-shadow: 0px 4px 15px rgba(0,0,0,0.15);
-                    min-height: 400px;
-                    background-color: rgba(255, 255, 255, 0.50) !important;
-                    padding: 40px;
-                }
-                .result-content {
-                    position: relative;
-                    z-index: 2;
-                }
-                .result-text {
-                    color: #2c3e50 !important;
-                }
-                .result-header {
-                    color: #2c3e50 !important;
-                    font-weight: 700;
-                    font-size: 1.3rem;
-                    margin: 0 0 25px 0;
-                    padding-bottom: 10px;
-                    border-bottom: 2px solid rgba(232, 244, 252, 0.7);
-                    text-align: center;
-                }
-                .metric-text {
-                    color: #2c3e50 !important;
-                }
-                .expand-text {
-                    color: #2c3e50 !important;
-                }
-                a[data-testid="stHeaderActionElements"],
-                span[data-testid="stHeaderActionElements"],
-                .st-emotion-cache-ubko3j,
-                .eqpbrs01,
-                .eqpbrs03 {
-                    display: none !important;
-                }
-            </style>
-        """, unsafe_allow_html=True)
-        
-        # Show result in a separate card with same style as form
-        st.markdown('<div class="result-section-wrapper">', unsafe_allow_html=True)
-        st.markdown('<div class="result-content">', unsafe_allow_html=True)
-        
-        st.markdown('<div class="result-header">Prediction Result</div>', unsafe_allow_html=True)
-        
-        # Result columns
-        result_col1, result_col2 = st.columns([3, 1])
-        
-        with result_col1:
-            if prediction == 1:
-                # Custom styled error message with #7f8c8d color
-                st.markdown("""
-                <div class="result-text">
-                <h3 style="color: Red; margin-bottom: 20px;">High Diabetes Risk Detected</h3>
-                
-                <p style="color: #2c3e50; margin-bottom: 15px;"><strong>The patient shows significant indicators for diabetes.</strong></p>
-                
-                <p style="color: #2c3e50; margin-bottom: 10px;"><strong>Immediate Actions Recommended:</strong></p>
-                <ul style="color: #2c3e50; margin-left: 20px; margin-bottom: 20px;">
-                <li style="margin-bottom: 5px;">Consult with an endocrinologist</li>
-                <li style="margin-bottom: 5px;">Schedule HbA1c and fasting glucose tests</li>
-                <li style="margin-bottom: 5px;">Begin lifestyle modifications</li>
-                <li>Regular monitoring required</li>
-                </ul>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                # Custom styled success message with #7f8c8d color
-                st.markdown("""
-                <div class="result-text">
-                <h3 style="color: Green; margin-bottom: 20px;">Low Diabetes Risk</h3>
-                
-                <p style="color: #2c3e50; margin-bottom: 15px;"><strong>The patient is unlikely to have diabetes based on current metrics.</strong></p>
-                
-                <p style="color: #2c3e50; margin-bottom: 10px;"><strong>Preventive Measures:</strong></p>
-                <ul style="color: #2c3e50; margin-left: 20px; margin-bottom: 20px;">
-                <li style="margin-bottom: 5px;">Maintain healthy BMI (18.5-24.9)</li>
-                <li style="margin-bottom: 5px;">Regular physical activity (150 mins/week)</li>
-                <li style="margin-bottom: 5px;">Balanced diet with low sugar intake</li>
-                <li>Annual health checkups recommended</li>
-                </ul>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        with result_col2:
-            risk_score = prediction_proba[1] * 100
-            if prediction == 1:
-                st.markdown(f"""
-                <div style="text-align: center; padding: 20px; border-radius: 10px; border: 2px solid rgba(231, 76, 60, 0.5); background-color: rgba(253, 242, 242, 0.7);">
-                    <h4 style="color: #2c3e50; margin-bottom: 10px; font-size: 1rem;">Risk Score</h4>
-                    <h1 style="color: #2c3e50; font-size: 2.2rem; margin: 0; font-weight: 700;">{risk_score:.1f}%</h1>
-                    <p style="color: Red; font-size: 0.9rem; margin-top: 5px; font-weight: 600;">HIGH</p>
-                    <p style="color: #2c3e50; font-size: 0.8rem; margin-top: 10px; opacity: 0.8;">Medical attention advised</p>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                # Custom metric with #7f8c8d color
-                st.markdown(f"""
-                <div style="text-align: center; padding: 20px; border-radius: 10px; border: 2px solid rgba(46, 204, 113, 0.5); background-color: rgba(249, 254, 249, 0.7);">
-                    <h4 style="color: #2c3e50; margin-bottom: 10px; font-size: 1rem;">Risk Score</h4>
-                    <h1 style="color: #2c3e50; font-size: 2.2rem; margin: 0; font-weight: 700;">{risk_score:.1f}%</h1>
-                    <p style="color: Green; font-size: 0.9rem; margin-top: 5px; font-weight: 600;">LOW</p>
-                    <p style="color: #2c3e50; font-size: 0.8rem; margin-top: 10px; opacity: 0.8;">Within safe range</p>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        # Close the result card
-        st.markdown('</div>', unsafe_allow_html=True)  # Close result-content
-        st.markdown('</div>', unsafe_allow_html=True)  # Close result-section-wrapper
+# Input validation
+required_fields = [pregnancies, glucose, blood_pressure, skin_thickness, insulin, bmi, dpf, age]
+if all(value == 0 for value in required_fields):
+st.warning("⚠️ Please enter patient data before predicting.")
+else:
+# Perform prediction
+input_df = pd.DataFrame(
+[[pregnancies, glucose, blood_pressure, skin_thickness, insulin, bmi, dpf, age]],
+columns=saved_cols
+)
+
+# Scale input if scaler exists
+if scaler is not None:
+input_scaled = scaler.transform(input_df)
+else:
+input_scaled = input_df.values
+
+prediction = model.predict(input_scaled)[0]
+prediction_proba = model.predict_proba(input_scaled)[0]
+
+# Add CSS for result card with same style as form
+st.markdown("""
+<style>
+ .result-section-wrapper {
+     position: absolute;
+     width: 750px;
+     margin: 30px auto;
+     left: 50%;
+     top: -20px; 
+     transform: translateX(-50%);
+     border-radius: 18px;
+     box-shadow: 0px 4px 15px rgba(0,0,0,0.15);
+     min-height: 400px;
+     background-color: rgba(255, 255, 255, 0.50) !important;
+     padding: 40px;
+ }
+ .result-content {
+     position: relative;
+     z-index: 2;
+ }
+ .result-text {
+     color: #2c3e50 !important;
+ }
+ .result-header {
+     color: #2c3e50 !important;
+     font-weight: 700;
+     font-size: 1.3rem;
+     margin: 0 0 25px 0;
+     padding-bottom: 10px;
+     border-bottom: 2px solid rgba(232, 244, 252, 0.7);
+     text-align: center;
+ }
+ .metric-text {
+     color: #2c3e50 !important;
+ }
+ .expand-text {
+     color: #2c3e50 !important;
+ }
+ a[data-testid="stHeaderActionElements"],
+ span[data-testid="stHeaderActionElements"],
+ .st-emotion-cache-ubko3j,
+ .eqpbrs01,
+ .eqpbrs03 {
+     display: none !important;
+ }
+</style>
+""", unsafe_allow_html=True)
+
+# Show result in a separate card with same style as form
+st.markdown('<div class="result-section-wrapper">', unsafe_allow_html=True)
+st.markdown('<div class="result-content">', unsafe_allow_html=True)
+
+st.markdown('<div class="result-header">Prediction Result</div>', unsafe_allow_html=True)
+
+# Result columns
+result_col1, result_col2 = st.columns([3, 1])
+
+with result_col1:
+if prediction == 1:
+ # Custom styled error message
+ st.markdown("""
+ <div class="result-text">
+ <h3 style="color: Red; margin-bottom: 20px;">High Diabetes Risk Detected</h3>
+ 
+ <p style="color: #2c3e50; margin-bottom: 15px;"><strong>The patient shows significant indicators for diabetes.</strong></p>
+ 
+ <p style="color: #2c3e50; margin-bottom: 10px;"><strong>Immediate Actions Recommended:</strong></p>
+ <ul style="color: #2c3e50; margin-left: 20px; margin-bottom: 20px;">
+ <li style="margin-bottom: 5px;">Consult with an endocrinologist</li>
+ <li style="margin-bottom: 5px;">Schedule HbA1c and fasting glucose tests</li>
+ <li style="margin-bottom: 5px;">Begin lifestyle modifications</li>
+ <li>Regular monitoring required</li>
+ </ul>
+ </div>
+ """, unsafe_allow_html=True)
+else:
+ # Custom styled success message
+ st.markdown("""
+ <div class="result-text">
+ <h3 style="color: Green; margin-bottom: 20px;">Low Diabetes Risk</h3>
+ 
+ <p style="color: #2c3e50; margin-bottom: 15px;"><strong>The patient is unlikely to have diabetes based on current metrics.</strong></p>
+ 
+ <p style="color: #2c3e50; margin-bottom: 10px;"><strong>Preventive Measures:</strong></p>
+ <ul style="color: #2c3e50; margin-left: 20px; margin-bottom: 20px;">
+ <li style="margin-bottom: 5px;">Maintain healthy BMI (18.5-24.9)</li>
+ <li style="margin-bottom: 5px;">Regular physical activity (150 mins/week)</li>
+ <li style="margin-bottom: 5px;">Balanced diet with low sugar intake</li>
+ <li>Annual health checkups recommended</li>
+ </ul>
+ </div>
+ """, unsafe_allow_html=True)
+
+with result_col2:
+risk_score = prediction_proba[1] * 100
+if prediction == 1:
+ st.markdown(f"""
+ <div style="text-align: center; padding: 20px; border-radius: 10px; border: 2px solid rgba(231, 76, 60, 0.5); background-color: rgba(253, 242, 242, 0.7);">
+     <h4 style="color: #2c3e50; margin-bottom: 10px; font-size: 1rem;">Risk Score</h4>
+     <h1 style="color: #2c3e50; font-size: 2.2rem; margin: 0; font-weight: 700;">{risk_score:.1f}%</h1>
+     <p style="color: Red; font-size: 0.9rem; margin-top: 5px; font-weight: 600;">HIGH</p>
+     <p style="color: #2c3e50; font-size: 0.8rem; margin-top: 10px; opacity: 0.8;">Medical attention advised</p>
+ </div>
+ """, unsafe_allow_html=True)
+else:
+ st.markdown(f"""
+ <div style="text-align: center; padding: 20px; border-radius: 10px; border: 2px solid rgba(46, 204, 113, 0.5); background-color: rgba(249, 254, 249, 0.7);">
+     <h4 style="color: #2c3e50; margin-bottom: 10px; font-size: 1rem;">Risk Score</h4>
+     <h1 style="color: #2c3e50; font-size: 2.2rem; margin: 0; font-weight: 700;">{risk_score:.1f}%</h1>
+     <p style="color: Green; font-size: 0.9rem; margin-top: 5px; font-weight: 600;">LOW</p>
+     <p style="color: #2c3e50; font-size: 0.8rem; margin-top: 10px; opacity: 0.8;">Within safe range</p>
+ </div>
+ """, unsafe_allow_html=True)
+
+# Close the result card
+st.markdown('</div>', unsafe_allow_html=True)  # Close result-content
+st.markdown('</div>', unsafe_allow_html=True)  # Close result-section-wrapper
 
 # Footer (outside all cards - this will remain at the bottom)
 st.markdown("""
-    <div style="text-align: center; color: black; font-size: 0.9rem; margin-top: 40px;">
-        <p>This tool provides preliminary assessment only. Always consult with a healthcare professional for accurate diagnosis.</p>
-    </div>
+<div style="text-align: center; color: black; font-size: 0.9rem; margin-top: 40px;">
+<p>This tool provides preliminary assessment only. Always consult with a healthcare professional for accurate diagnosis.</p>
+</div>
 """, unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)  # Close main-container
