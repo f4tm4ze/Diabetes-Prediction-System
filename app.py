@@ -244,7 +244,7 @@ st.markdown("""
         background: linear-gradient(135deg, #0F4C5F 0%, #1C6E7E 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        font-size: 3.2rem !important;
+        font-size: 4rem !important;
         font-weight: 700 !important;
         text-align: center;
         margin-bottom: 0.8rem !important;
@@ -253,7 +253,7 @@ st.markdown("""
     
     .hero-container p {
         color: #1a4c64;
-        font-size: 1.25rem !important;
+        font-size: 2rem !important;
         font-weight: 500;
         max-width: 700px;
         margin: 0 auto;
@@ -264,7 +264,7 @@ st.markdown("""
     /* Section headers */
     .stMarkdown h4 {
         color: #0F4C5F !important;
-        font-size: 1.3rem !important;
+        font-size: 2rem !important;
         font-weight: 700 !important;
         margin-bottom: 1.2rem !important;
         margin-top: 0.5rem !important;
@@ -307,7 +307,7 @@ st.markdown("""
         border-radius: 40px !important;
         padding: 0.9rem 2.5rem !important;
         font-weight: 700 !important;
-        font-size: 1.05rem !important;
+        font-size: 2rem !important;
         border: none !important;
         transition: all 0.3s ease !important;
         width: 100% !important;
@@ -334,13 +334,13 @@ st.markdown("""
     }
     
     div[data-testid="stMetric"] [data-testid="stMetricLabel"] {
-        font-size: 0.95rem !important;
+        font-size: 1.4rem !important;
         font-weight: 600 !important;
         color: #666 !important;
     }
     
     div[data-testid="stMetric"] [data-testid="stMetricValue"] {
-        font-size: 2rem !important;
+        font-size: 3rem !important;
         font-weight: 700 !important;
         color: #1f6e8c !important;
         margin: 0.8rem 0 !important;
@@ -376,13 +376,13 @@ st.markdown("""
     }
     
     .stError h3 {
-        font-size: 1.4rem !important;
+        font-size: 2rem !important;
         margin-bottom: 0.8rem !important;
     }
     
     /* Success message */
     .stSuccess h3 {
-        font-size: 1.4rem !important;
+        font-size: 2rem !important;
         margin-bottom: 0.8rem !important;
     }
     
@@ -457,13 +457,13 @@ st.markdown("""
     
     /* Subheader styling for results */
     [data-testid="stMarkdownContainer"] > h3:first-of-type {
-        font-size: 1.5rem !important;
+        font-size: 2rem !important;
         margin-bottom: 1rem !important;
     }
     
     /* Result message styling */
     .stError h3, .stSuccess h3 {
-        font-size: 1.5rem !important;
+        font-size: 2rem !important;
         margin-top: 0.5rem !important;
         margin-bottom: 0.8rem !important;
     }
@@ -689,7 +689,7 @@ st.markdown(
         <p><strong>Disclaimer:</strong> This tool provides preliminary assessment only based on the data entered. 
         It is not a substitute for professional medical advice, diagnosis, or treatment. 
         Always consult with a healthcare professional for accurate diagnosis and treatment recommendations.</p>
-        <p style="font-size: 0.9rem; margin-top: 1rem;">© 2025 Diabetes Prediction System</p>
+        <p style="font-size: 1rem; margin-top: 1rem;">© 2025 Diabetes Prediction System</p>
     </div>
     """, 
     unsafe_allow_html=True
