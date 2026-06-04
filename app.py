@@ -39,7 +39,7 @@ def extract_model_from_pickle():
     print("="*60)
     
     if not os.path.exists(MODEL_PATH):
-        print(f"❌ {MODEL_PATH} not found!")
+        print(f"{MODEL_PATH} not found!")
         return None, None, None
     
     print(f"✓ Found {MODEL_PATH} ({os.path.getsize(MODEL_PATH)} bytes)")
@@ -57,13 +57,13 @@ def extract_model_from_pickle():
                     else:
                         f.seek(0)
                         data = pickle.load(f)
-                    print(f"✓ Loaded with encoding: {encoding or 'default'}")
+                    print(f"Loaded with encoding: {encoding or 'default'}")
                     break
                 except:
                     continue
             
             if data is None:
-                print("❌ Could not load with any encoding")
+                print("Could not load with any encoding")
                 return None, None, None
             
             # Now try to extract the model
@@ -125,17 +125,17 @@ def extract_model_from_pickle():
                             return result
                 return None
             
-            print("\n🔍 Searching for model in pickle data...")
+            print("\nSearching for model in pickle data...")
             model = find_model(data)
             if model:
                 print(f"✓ Found model: {type(model).__name__}")
             
-            print("🔍 Searching for scaler...")
+            print("Searching for scaler...")
             scaler = find_scaler(data)
             if scaler:
                 print(f"✓ Found scaler: {type(scaler).__name__}")
             
-            print("🔍 Searching for column names...")
+            print("Searching for column names...")
             columns = find_columns(data)
             if columns:
                 print(f"✓ Found columns: {columns}")
@@ -157,7 +157,7 @@ def extract_model_from_pickle():
                 import joblib
                 fixed_path = "diabetes_model_fixed.pkl"
                 joblib.dump((model, scaler, columns), fixed_path, protocol=4)
-                print(f"\n✅ Saved fixed model to {fixed_path}")
+                print(f"\nSaved fixed model to {fixed_path}")
                 
                 # Also save a marker
                 with open(".model_fixed_success", "w") as f:
@@ -165,11 +165,11 @@ def extract_model_from_pickle():
                 
                 return model, scaler, columns
             else:
-                print("\n❌ Could not find model in the pickle file")
+                print("\nCould not find model in the pickle file")
                 return None, None, None
                 
     except Exception as e:
-        print(f"❌ Error during extraction: {str(e)}")
+        print(f"Error during extraction: {str(e)}")
         return None, None, None
 
 # =============== ATTEMPT TO FIX MODEL ==================
@@ -188,7 +188,7 @@ if os.path.exists("diabetes_model_fixed.pkl") and os.path.exists(".model_fixed_s
             model = model_data[0]
             scaler = model_data[1]
             cols = model_data[2] if len(model_data) > 2 else None
-            print("✅ Loaded existing fixed model")
+            print("Loaded existing fixed model")
         else:
             model, scaler, cols = None, None, None
     except Exception as e:
@@ -202,7 +202,7 @@ if model is None:
 
 # If still no model, create a simple one for testing
 if model is None:
-    print("⚠️ Creating a basic model for testing...")
+    print("Creating a basic model for testing...")
     from sklearn.ensemble import GradientBoostingClassifier
     X_dummy = np.random.randn(200, 8)
     y_dummy = (X_dummy[:, 0] + X_dummy[:, 1] > 0).astype(int)
@@ -211,7 +211,7 @@ if model is None:
     scaler = None
     cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 
             'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
-    print("⚠️ Using demo model for testing")
+    print("Using demo model for testing")
 
 if cols is None:
     cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 
@@ -250,8 +250,14 @@ def add_bg_from_local(image_file):
 add_bg_from_local("bg2.jpg")
 
 # =============== MAIN UI ==================
-st.title("🩺 Diabetes Prediction System")
-st.markdown("### Enter patient health metrics below for diabetes risk assessment")
+st.markdown("""
+<div class="hero-container">
+    <h1>Diabetes Risk Assessment</h1>
+    <p>
+        Enter patient clinical measurements to generate a diabetes risk prediction.
+    </p>
+</div>
+""", unsafe_allow_html=True)
 st.markdown("---")
 
 # Initialize session state
@@ -274,7 +280,7 @@ defaults = {
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown("#### 📊 Patient Metrics")
+    st.markdown("####  Patient Metrics")
     pregnancies = st.number_input(
         "Number of Pregnancies", 
         min_value=0, 
@@ -312,7 +318,7 @@ with col1:
     )
 
 with col2:
-    st.markdown("#### 🩺 Health Indicators")
+    st.markdown("### Clinical Measurements")
     insulin = st.number_input(
         "Insulin Level (μU/ml)", 
         min_value=0, 
@@ -354,9 +360,9 @@ with col2:
 # Buttons
 col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
 with col_btn1:
-    predict_btn = st.button("🔮 Predict Risk", type="primary", use_container_width=True)
+    predict_btn = st.button(" Predict Risk ", type="primary", use_container_width=True)
 with col_btn2:
-    reset_btn = st.button("🔄 Reset Form", use_container_width=True)
+    reset_btn = st.button(" Reset Form ", use_container_width=True)
 
 # Reset logic
 if reset_btn:
@@ -372,7 +378,7 @@ if st.session_state.reset:
 if predict_btn:
     # Check if any data was entered
     if all(v == 0 for v in [pregnancies, glucose, blood_pressure, skin_thickness, insulin, bmi, dpf, age]):
-        st.warning("⚠️ Please enter patient data before predicting.")
+        st.warning("Please enter patient information before generating an assessment.")
     else:
         # Create input dataframe
         input_data = pd.DataFrame(
@@ -396,11 +402,11 @@ if predict_btn:
             risk_score = proba[1] * 100
             
             st.markdown("---")
-            st.subheader("📊 Prediction Result")
+            st.subheader("Prediction Result")
             
             # Display result with styling
             if prediction == 1:
-                st.error("## ⚠️ HIGH DIABETES RISK DETECTED")
+                st.error("##HIGH DIABETES RISK DETECTED")
                 st.markdown(f"### Risk Score: **{risk_score:.1f}%**")
                 
                 col_info1, col_info2 = st.columns(2)
@@ -410,15 +416,15 @@ if predict_btn:
                     st.metric("Risk Category", "HIGH", delta="Medical attention needed")
                 
                 st.info("""
-                **📋 Immediate Actions Recommended:**
-                - 👨‍⚕️ Consult with an endocrinologist immediately
-                - 🧪 Schedule HbA1c and fasting glucose tests
-                - 🥗 Begin lifestyle modifications (diet and exercise)
-                - 📊 Regular monitoring of blood glucose levels
-                - 💊 Discuss medication options with healthcare provider
+                **Immediate Actions Recommended:**
+                - Consult with an endocrinologist immediately
+                - Schedule HbA1c and fasting glucose tests
+                - Begin lifestyle modifications (diet and exercise)
+                - Regular monitoring of blood glucose levels
+                - Discuss medication options with healthcare provider
                 """)
             else:
-                st.success("## ✅ LOW DIABETES RISK")
+                st.success("## LOW DIABETES RISK")
                 st.markdown(f"### Risk Score: **{risk_score:.1f}%**")
                 
                 col_info1, col_info2 = st.columns(2)
@@ -428,12 +434,12 @@ if predict_btn:
                     st.metric("Risk Category", "LOW", delta="Preventive measures")
                 
                 st.info("""
-                **📋 Preventive Measures:**
-                - 🏃‍♂️ Maintain healthy BMI (18.5-24.9)
-                - 🥬 Regular physical activity (150 mins/week)
-                - 🍎 Balanced diet with low sugar intake
-                - 📅 Annual health checkups recommended
-                - 🩸 Periodic blood glucose monitoring
+                **Preventive Measures:**
+                - Maintain healthy BMI (18.5-24.9)
+                - Regular physical activity (150 mins/week)
+                - Balanced diet with low sugar intake
+                - Annual health checkups recommended
+                - Periodic blood glucose monitoring
                 """)
                 
             # Show input summary
@@ -448,7 +454,7 @@ if predict_btn:
                 st.table(summary_df)
             
         except Exception as e:
-            st.error(f"❌ Prediction error: {str(e)}")
+            st.error(f"Prediction error: {str(e)}")
             st.info("Please ensure all inputs are valid numbers and try again.")
 
 # Footer
@@ -456,7 +462,7 @@ st.markdown("---")
 st.markdown(
     """
     <div style='text-align: center; color: #666; padding: 20px;'>
-        <p>⚠️ <strong>Disclaimer:</strong> This tool provides preliminary assessment only based on the data entered. 
+        <p><strong>Disclaimer:</strong> This tool provides preliminary assessment only based on the data entered. 
         It is not a substitute for professional medical advice, diagnosis, or treatment. 
         Always consult with a healthcare professional for accurate diagnosis and treatment recommendations.</p>
         <p style='font-size: 0.8rem; margin-top: 10px;'>© 2024 Diabetes Prediction System | For educational purposes</p>
