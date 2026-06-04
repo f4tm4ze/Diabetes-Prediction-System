@@ -1,4 +1,3 @@
-# =============== COMPLETE APP.PY WITH FORCED MODEL FIX ==================
 import os
 import sys
 import numpy as np
@@ -29,7 +28,7 @@ if not hasattr(np.random, '_mt19937'):
 if not hasattr(np.random, 'BitGenerator'):
     np.random.BitGenerator = random.BitGenerator
 
-# =============== FORCE MODEL FIX ==================
+# =============== MODEL ==================
 MODEL_PATH = "diabetes_gb.pkl"
 
 def extract_model_from_pickle():
@@ -164,7 +163,7 @@ def extract_model_from_pickle():
         print(f"Error during extraction: {str(e)}")
         return None, None, None
 
-# =============== ATTEMPT TO FIX MODEL ==================
+# =============== FIX MODEL ==================
 import joblib
 
 model = None
@@ -230,117 +229,243 @@ st.markdown("""
         margin: 0 auto;
     }
     
-    /* Style the form container */
-    .stForm {
-        background-color: rgba(255, 255, 255, 0.95);
-        border-radius: 20px;
-        padding: 1rem;
-    }
-    
     /* Center headings */
     h1, h2, h3 {
         text-align: center;
     }
     
-    /* Center the hero text */
+    /* Hero container */
     .hero-container {
         text-align: center;
-        margin-bottom: 1rem;
+        margin-bottom: 2rem;
     }
     
     .hero-container h1 {
         background: linear-gradient(135deg, #0F4C5F 0%, #1C6E7E 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        font-size: 2.5rem;
-        font-weight: 700;
+        font-size: 3.2rem !important;
+        font-weight: 700 !important;
         text-align: center;
+        margin-bottom: 0.8rem !important;
+        letter-spacing: -0.5px;
     }
     
     .hero-container p {
         color: #1a4c64;
-        font-size: 1.1rem;
-        max-width: 600px;
+        font-size: 1.25rem !important;
+        font-weight: 500;
+        max-width: 700px;
         margin: 0 auto;
         text-align: center;
+        line-height: 1.6;
     }
     
-    /* Buttons side by side */
-    .stButton > button {
-        background-color: #1f6e8c !important;
-        color: white !important;
-        border-radius: 40px !important;
-        padding: 0.6rem 2rem !important;
+    /* Section headers */
+    .stMarkdown h4 {
+        color: #0F4C5F !important;
+        font-size: 1.3rem !important;
+        font-weight: 700 !important;
+        margin-bottom: 1.2rem !important;
+        margin-top: 0.5rem !important;
+        letter-spacing: 0.3px;
+    }
+    
+    .stMarkdown h3 {
+        color: #0F4C5F !important;
+        font-size: 1.5rem !important;
+        font-weight: 700 !important;
+        margin-bottom: 1.5rem !important;
+    }
+    
+    /* Input labels */
+    .stNumberInput label {
+        font-size: 1rem !important;
         font-weight: 600 !important;
-        border: none !important;
-        transition: all 0.3s ease !important;
-        width: 100% !important;
+        color: #1a4c64 !important;
+        margin-bottom: 0.6rem !important;
     }
     
-    .stButton > button:hover {
-        background-color: #0e5a75 !important;
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.15) !important;
-    }
-    
-    /* Make number inputs look better */
+    /* Input styling */
     .stNumberInput > div > div > input {
         border-radius: 12px !important;
-        border: 1.5px solid #e2edf2 !important;
-        padding: 0.5rem 1rem !important;
+        border: 1.5px solid #d4e4f0 !important;
+        padding: 0.75rem 1rem !important;
+        font-size: 1rem !important;
+        background-color: #ffffff !important;
     }
     
     .stNumberInput > div > div > input:focus {
         border-color: #5aa9c9 !important;
-        box-shadow: 0 0 0 2px rgba(90, 169, 201, 0.2) !important;
+        box-shadow: 0 0 0 3px rgba(90, 169, 201, 0.15) !important;
     }
     
-    /* Subheader styling */
-    .stMarkdown h3 {
-        color: #1a4c64;
-        font-weight: 600;
+    /* Button styling */
+    .stButton > button {
+        background-color: #1f6e8c !important;
+        color: white !important;
+        border-radius: 40px !important;
+        padding: 0.9rem 2.5rem !important;
+        font-weight: 700 !important;
+        font-size: 1.05rem !important;
+        border: none !important;
+        transition: all 0.3s ease !important;
+        width: 100% !important;
+        letter-spacing: 0.5px;
     }
     
-    .stMarkdown h4 {
-        color: #1a4c64;
-        font-weight: 600;
+    .stButton > button:hover {
+        background-color: #0e5a75 !important;
+        transform: translateY(-3px);
+        box-shadow: 0 10px 25px rgba(15, 76, 95, 0.25) !important;
     }
     
-    /* Disclaimer styling - white text */
+    .stButton > button:active {
+        transform: translateY(-1px);
+    }
+    
+    /* Metric styling */
+    div[data-testid="stMetric"] {
+        background-color: white !important;
+        border-radius: 15px !important;
+        padding: 1.2rem !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+        border: 1px solid #e8f0f5 !important;
+    }
+    
+    div[data-testid="stMetric"] [data-testid="stMetricLabel"] {
+        font-size: 0.95rem !important;
+        font-weight: 600 !important;
+        color: #666 !important;
+    }
+    
+    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+        font-size: 2rem !important;
+        font-weight: 700 !important;
+        color: #1f6e8c !important;
+        margin: 0.8rem 0 !important;
+    }
+    
+    div[data-testid="stMetric"] [data-testid="stMetricDelta"] {
+        font-size: 0.9rem !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Alert/Info box styling */
+    .stAlert {
+        border-radius: 12px !important;
+        padding: 1.2rem !important;
+        font-size: 0.95rem !important;
+        line-height: 1.7 !important;
+    }
+    
+    .stAlert p {
+        font-size: 0.95rem !important;
+        line-height: 1.7 !important;
+        margin: 0.5rem 0 !important;
+    }
+    
+    .stAlert strong {
+        font-weight: 700 !important;
+        font-size: 0.97rem !important;
+    }
+    
+    /* Error message */
+    .stError {
+        font-size: 0.95rem !important;
+    }
+    
+    .stError h3 {
+        font-size: 1.4rem !important;
+        margin-bottom: 0.8rem !important;
+    }
+    
+    /* Success message */
+    .stSuccess h3 {
+        font-size: 1.4rem !important;
+        margin-bottom: 0.8rem !important;
+    }
+    
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        background: linear-gradient(135deg, rgba(31, 110, 140, 0.1), rgba(90, 169, 201, 0.05)) !important;
+        border-radius: 12px !important;
+        font-size: 1rem !important;
+        font-weight: 600 !important;
+        color: #0F4C5F !important;
+        padding: 0.8rem !important;
+    }
+    
+    .streamlit-expanderHeader:hover {
+        background: linear-gradient(135deg, rgba(31, 110, 140, 0.15), rgba(90, 169, 201, 0.1)) !important;
+    }
+    
+    /* Divider */
+    hr {
+        margin: 2rem 0 !important;
+        border: none !important;
+        height: 2px !important;
+        background: linear-gradient(90deg, transparent, #1f6e8c, transparent) !important;
+    }
+    
+    /* Table styling */
+    [data-testid="stDataFrame"] {
+        border-radius: 12px !important;
+        overflow: hidden !important;
+    }
+    
+    [data-testid="stDataFrame"] th {
+        background: linear-gradient(135deg, #1f6e8c, #0F4C5F) !important;
+        color: white !important;
+        font-weight: 700 !important;
+        font-size: 0.95rem !important;
+        padding: 0.8rem !important;
+    }
+    
+    [data-testid="stDataFrame"] td {
+        padding: 0.75rem !important;
+        font-size: 0.95rem !important;
+        color: #333 !important;
+        background-color: white !important;
+    }
+    
+    [data-testid="stDataFrame"] tbody tr:hover td {
+        background-color: #f0f7fb !important;
+    }
+    
+    /* Disclaimer styling */
     .disclaimer-text {
         text-align: center;
         color: white !important;
         background-color: transparent;
-        padding: 1rem;
+        padding: 1.5rem;
         border-radius: 15px;
         margin-top: 2rem;
     }
     
     .disclaimer-text p {
         color: white !important;
-        margin: 0.5rem 0;
+        margin: 0.6rem 0 !important;
+        font-size: 0.95rem !important;
+        line-height: 1.6 !important;
     }
     
     .disclaimer-text strong {
         color: white !important;
+        font-weight: 700 !important;
     }
     
-    /* Metric styling */
-    div[data-testid="stMetric"] {
-        background-color: white;
-        border-radius: 15px;
-        padding: 0.5rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    /* Subheader styling for results */
+    [data-testid="stMarkdownContainer"] > h3:first-of-type {
+        font-size: 1.5rem !important;
+        margin-bottom: 1rem !important;
     }
     
-    /* Info box styling */
-    .stAlert {
-        border-radius: 15px !important;
-    }
-    
-    /* Divider */
-    hr {
-        margin: 1.5rem 0;
+    /* Result message styling */
+    .stError h3, .stSuccess h3 {
+        font-size: 1.5rem !important;
+        margin-top: 0.5rem !important;
+        margin-bottom: 0.8rem !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -372,7 +497,7 @@ defaults = {
 }
 
 # Create two columns for inputs
-col1, col2 = st.columns(2)
+col1, col2 = st.columns(2, gap="large")
 
 with col1:
     st.markdown("#### Patient Metrics")
@@ -452,7 +577,6 @@ with col2:
         key="age_input"
     )
 
-# Buttons - side by side
 st.markdown("---")
 btn_col1, btn_col2 = st.columns(2, gap="medium")
 
@@ -565,7 +689,7 @@ st.markdown(
         <p><strong>Disclaimer:</strong> This tool provides preliminary assessment only based on the data entered. 
         It is not a substitute for professional medical advice, diagnosis, or treatment. 
         Always consult with a healthcare professional for accurate diagnosis and treatment recommendations.</p>
-        <p style="font-size: 0.8rem; margin-top: 10px;">© 2024 Diabetes Prediction System | For educational purposes</p>
+        <p style="font-size: 0.9rem; margin-top: 1rem;">© 2025 Diabetes Prediction System</p>
     </div>
     """, 
     unsafe_allow_html=True
