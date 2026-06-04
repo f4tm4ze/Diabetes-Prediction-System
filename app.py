@@ -1,5 +1,17 @@
-# =============== FORCE NUMPY COMPATIBILITY ==================
+# =============== RUN MODEL FIX FIRST ==================
+import os
 import sys
+
+# Run the setup script if it exists and model needs fixing
+if os.path.exists("setup.py") and not os.path.exists(".model_fixed"):
+    try:
+        print("Running model setup...")
+        exec(open("setup.py").read())
+        print("Model setup completed!")
+    except Exception as e:
+        print(f"Setup error: {e}")
+
+# =============== NUMPY COMPATIBILITY PATCH ==================
 import numpy as np
 import numpy.random as random
 
@@ -7,7 +19,6 @@ import numpy.random as random
 if not hasattr(np, '_core'):
     np._core = np.core
 
-# Create missing random modules
 if not hasattr(random, '_mt19937'):
     class _MT19937:
         class MT19937:
@@ -21,7 +32,6 @@ if not hasattr(random, 'BitGenerator'):
             pass
     random.BitGenerator = BitGenerator
 
-# Add to global numpy
 if not hasattr(np.random, '_mt19937'):
     np.random._mt19937 = random._mt19937
 if not hasattr(np.random, 'BitGenerator'):
@@ -32,7 +42,6 @@ import streamlit as st
 import pandas as pd
 import joblib
 import base64
-import os
 import pickle
 import warnings
 warnings.filterwarnings('ignore')
@@ -379,100 +388,58 @@ st.markdown("""
     </script>
 """, unsafe_allow_html=True)
 
-# ===================== LOAD MODEL WITH ULTRA SIMPLE APPROACH ==========================
+# ===================== LOAD MODEL ==========================
 @st.cache_resource
 def load_diabetes_model():
-    """Simple model loader with minimal dependencies"""
-    model_path = "diabetes_gb.pkl"
+    """Load the diabetes prediction model"""
     
-    if not os.path.exists(model_path):
-        st.error(f"❌ Model file not found! Please ensure 'diabetes_gb.pkl' is in the repository.")
-        st.stop()
+    # Try different model file paths in order
+    model_paths = ["diabetes_gb_fixed.pkl", "diabetes_gb.pkl"]
     
-    try:
-        # Try the simplest approach first
-        with open(model_path, 'rb') as f:
-            # Try to load ignoring version mismatches
-            model_data = pickle.load(f, encoding='latin1')
-        
-        # If it's a tuple, try to find the sklearn model
-        if isinstance(model_data, tuple):
-            model = None
-            scaler = None
-            for obj in model_data:
-                if hasattr(obj, 'predict') and hasattr(obj, 'predict_proba'):
-                    model = obj
-                elif hasattr(obj, 'transform') and hasattr(obj, 'fit_transform'):
-                    scaler = obj
-            
-            if model is None and len(model_data) > 0:
-                model = model_data[0]
-            
-            saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
-        else:
-            model = model_data
-            scaler = None
-            saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
-        
-        if model is None:
-            raise Exception("No model found in pickle file")
-        
-        st.success("✅ Model loaded successfully!")
-        return model, scaler, saved_cols
-        
-    except Exception as e:
-        st.error(f"Failed to load model: {str(e)}")
-        st.info("Attempting to load with joblib as fallback...")
-        
-        try:
-            # Try joblib as fallback
-            model_data = joblib.load(model_path)
-            
-            if isinstance(model_data, tuple):
-                if len(model_data) == 3:
-                    model, scaler, saved_cols = model_data
-                elif len(model_data) == 2:
-                    model, scaler = model_data
-                    saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
+    for model_path in model_paths:
+        if os.path.exists(model_path):
+            try:
+                # Try loading with joblib
+                model_data = joblib.load(model_path)
+                
+                # Handle different return formats
+                if isinstance(model_data, tuple):
+                    if len(model_data) == 3:
+                        model, scaler, saved_cols = model_data
+                    elif len(model_data) == 2:
+                        model, scaler = model_data
+                        saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
+                    else:
+                        model = model_data[0]
+                        scaler = None
+                        saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
                 else:
-                    model = model_data[0]
+                    model = model_data
                     scaler = None
                     saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
-            else:
-                model = model_data
-                scaler = None
-                saved_cols = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
-            
-            st.success("✅ Model loaded with joblib!")
-            return model, scaler, saved_cols
-            
-        except Exception as e2:
-            st.error(f"All loading methods failed: {str(e2)}")
-            st.markdown("""
-            ### Troubleshooting:
-            1. Make sure `diabetes_gb.pkl` is in the repository root
-            2. Check that the file isn't corrupted
-            3. Try re-uploading the model file
-            
-            Using a basic model for testing purposes...
-            """)
-            
-            # Create a basic model for testing (won't be accurate but allows app to run)
-            from sklearn.ensemble import GradientBoostingClassifier
-            import numpy as np
-            
-            dummy_model = GradientBoostingClassifier(n_estimators=10, random_state=42)
-            dummy_model.fit(np.random.randn(100, 8), np.random.randint(0, 2, 100))
-            
-            return dummy_model, None, ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
+                
+                if model is not None:
+                    st.success(f"✅ Model loaded successfully from {model_path}!")
+                    return model, scaler, saved_cols
+                    
+            except Exception as e:
+                st.warning(f"Failed to load {model_path}: {str(e)[:100]}")
+                continue
+    
+    # If all models fail, use a simple model for demonstration
+    st.warning("Using demonstration model. Please run setup.py to fix the actual model.")
+    from sklearn.ensemble import GradientBoostingClassifier
+    import numpy as np
+    
+    dummy_model = GradientBoostingClassifier(n_estimators=50, random_state=42)
+    X_dummy = np.random.randn(200, 8)
+    y_dummy = (X_dummy[:, 0] + X_dummy[:, 1] > 0).astype(int)
+    dummy_model.fit(X_dummy, y_dummy)
+    
+    return dummy_model, None, ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
 
 # Load the model
 model, scaler, saved_cols = load_diabetes_model()
-
-# Verify model loaded successfully
-if model is None:
-    st.error("Model could not be loaded. Please check the error messages above.")
-    st.stop()
 
 # If saved_cols is None, set default column names
 if saved_cols is None:
@@ -648,7 +615,7 @@ if predict:
             prediction = model.predict(input_scaled)[0]
             prediction_proba = model.predict_proba(input_scaled)[0]
             
-            # Add CSS for result card with same style as form
+            # Add CSS for result card
             st.markdown("""
                 <style>
                     .result-section-wrapper {
@@ -696,7 +663,7 @@ if predict:
                 </style>
             """, unsafe_allow_html=True)
             
-            # Show result in a separate card with same style as form
+            # Show result in a separate card
             st.markdown('<div class="result-section-wrapper">', unsafe_allow_html=True)
             st.markdown('<div class="result-content">', unsafe_allow_html=True)
             
@@ -766,9 +733,9 @@ if predict:
             
         except Exception as e:
             st.error(f"Prediction error: {str(e)}")
-            st.info("Please ensure the model is properly loaded and all inputs are valid.")
+            st.info("Please ensure all inputs are valid numbers.")
 
-# Footer (outside all cards - this will remain at the bottom)
+# Footer
 st.markdown("""
     <div style="text-align: center; color: black; font-size: 0.9rem; margin-top: 40px;">
         <p>This tool provides preliminary assessment only. Always consult with a healthcare professional for accurate diagnosis.</p>
