@@ -222,7 +222,7 @@ st.markdown("""
                 // For decimal numbers, remove leading zeros before decimal
                 let parts = value.split('.');
                 if (parts[0].length > 1) {
-                    parts[0] = parts[0].replace(/^0+(?=\d)/, '');
+                   parts[0] = parts[0].replace(/^0+(?=\\d)/, '');
                 }
                 value = parts.join('.');
             } else {
