@@ -2,6 +2,10 @@ import streamlit as st
 import pandas as pd
 import joblib
 import base64
+import os
+import pickle
+import warnings
+warnings.filterwarnings('ignore')
 
 # =============== BACKGROUND IMAGE FUNCTION ==================
 def add_bg_from_local(image_file):
@@ -341,9 +345,108 @@ st.markdown("""
     </script>
 """, unsafe_allow_html=True)
 
-# ===================== LOAD MODEL ==========================
-model, scaler, saved_cols = joblib.load("diabetes_gb.pkl")
-scaler = scaler.set_output(transform='pandas')
+# ===================== LOAD MODEL WITH ERROR HANDLING ==========================
+@st.cache_resource
+def load_diabetes_model():
+    """Load the diabetes prediction model with fallback mechanisms"""
+    model_path = "diabetes_gb.pkl"
+    
+    # Check if model exists
+    if not os.path.exists(model_path):
+        st.error(f"❌ Model file '{model_path}' not found!")
+        st.info("Please ensure the model file is uploaded to the repository.")
+        st.stop()
+    
+    # Try multiple loading strategies
+    load_errors = []
+    
+    # Strategy 1: Normal joblib load
+    try:
+        model_data = joblib.load(model_path)
+        
+        # Handle different return formats
+        if isinstance(model_data, tuple):
+            if len(model_data) == 3:
+                model, scaler, saved_cols = model_data
+            elif len(model_data) == 2:
+                model, scaler = model_data
+                saved_cols = None
+            else:
+                model, scaler, saved_cols = model_data[0], None, None
+        else:
+            model, scaler, saved_cols = model_data, None, None
+        
+        # Configure scaler if it exists
+        if scaler is not None and hasattr(scaler, 'set_output'):
+            scaler = scaler.set_output(transform='pandas')
+        
+        return model, scaler, saved_cols
+        
+    except Exception as e:
+        load_errors.append(f"Joblib load: {str(e)}")
+    
+    # Strategy 2: Try with pickle
+    try:
+        with open(model_path, 'rb') as f:
+            model_data = pickle.load(f)
+        
+        if isinstance(model_data, tuple):
+            if len(model_data) == 3:
+                model, scaler, saved_cols = model_data
+            elif len(model_data) == 2:
+                model, scaler = model_data
+                saved_cols = None
+            else:
+                model, scaler, saved_cols = model_data[0], None, None
+        else:
+            model, scaler, saved_cols = model_data, None, None
+        
+        if scaler is not None and hasattr(scaler, 'set_output'):
+            scaler = scaler.set_output(transform='pandas')
+        
+        return model, scaler, saved_cols
+        
+    except Exception as e:
+        load_errors.append(f"Pickle load: {str(e)}")
+    
+    # If all strategies fail, show error
+    st.error("❌ Failed to load the diabetes prediction model")
+    
+    with st.expander("🔧 Troubleshooting Information"):
+        st.write("**Load Errors:**")
+        for error in load_errors:
+            st.code(error)
+        
+        st.write("**Required Package Versions:**")
+        st.code("""
+        scikit-learn==1.6.1
+        pandas>=2.0.0
+        numpy>=1.24.0
+        joblib>=1.3.0
+        """)
+        
+        st.write("**Current Package Versions:**")
+        try:
+            import sklearn
+            st.write(f"- scikit-learn: {sklearn.__version__}")
+        except:
+            st.write("- scikit-learn: Not installed")
+        
+        try:
+            import pandas as pd
+            st.write(f"- pandas: {pd.__version__}")
+        except:
+            st.write("- pandas: Not installed")
+    
+    st.stop()
+
+# Load the model
+model, scaler, saved_cols = load_diabetes_model()
+
+# Verify model loaded successfully
+if model is None:
+    st.error("Model could not be loaded. Please check the error messages above.")
+    st.stop()
 
 # ======================= MAIN UI ==========================
 st.markdown('<div class="main-container">', unsafe_allow_html=True)
@@ -354,7 +457,6 @@ st.markdown(
     '<p class="subtitle" style="color: black;">Enter patient health metrics below for diabetes risk assessment</p>',
     unsafe_allow_html=True
 )
-
 
 # =================== FORM SECTION WITH BACKGROUND CARD ==============
 st.markdown('<div class="form-section-wrapper">', unsafe_allow_html=True)
@@ -500,10 +602,15 @@ if predict:
         # Perform prediction
         input_df = pd.DataFrame(
             [[pregnancies, glucose, blood_pressure, skin_thickness, insulin, bmi, dpf, age]],
-            columns=saved_cols
+            columns=saved_cols if saved_cols is not None else ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age']
         )
         
-        input_scaled = scaler.transform(input_df)
+        # Scale input if scaler exists
+        if scaler is not None:
+            input_scaled = scaler.transform(input_df)
+        else:
+            input_scaled = input_df.values
+        
         prediction = model.predict(input_scaled)[0]
         prediction_proba = model.predict_proba(input_scaled)[0]
         
@@ -621,7 +728,6 @@ if predict:
                     <p style="color: #2c3e50; font-size: 0.8rem; margin-top: 10px; opacity: 0.8;">Within safe range</p>
                 </div>
                 """, unsafe_allow_html=True)
-        
         
         # Close the result card
         st.markdown('</div>', unsafe_allow_html=True)  # Close result-content
